@@ -1,0 +1,8 @@
+{
+  "name": "لیست قیمت احسان استور",
+  "description": "سیستم مدیریت قیمت و موجودی محصولات با قابلیت تبدیل خودکار ارز (یوان و درهم) به تومان و نمایش محتوای چندرسانه‌ای",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

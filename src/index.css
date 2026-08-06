@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&display=swap');
+@import "tailwindcss";
+
+/* 
+  To make the app 100% independent of foreign servers:
+  1. Download Vazirmatn font from https://github.com/rastikerdar/vazirmatn
+  2. Put the .woff2 files in /public/fonts/
+  3. Uncomment the @font-face block below
+*/
+
+/*
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+*/
+
+@theme {
+  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --color-indigo-50: #f5f7ff;
+  --color-indigo-600: #4f46e5;
+  --color-indigo-700: #4338ca;
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-800: #1e293b;
+  --background-image-insta: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+}
+
+@layer base {
+  html {
+    direction: rtl;
+    font-family: var(--font-sans);
+  }
+  body {
+    @apply bg-slate-50 text-slate-800;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
