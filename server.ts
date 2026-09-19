@@ -3,7 +3,6 @@ import path from "path";
 import fs from "fs";
 import multer from "multer";
 import AdmZip from "adm-zip";
-import { createServer as createViteServer } from "vite";
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_SETTINGS } from "./src/data";
 
 const app = express();
@@ -184,6 +183,7 @@ app.get("/api/admin/export", (req, res) => {
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     // Integrate Vite as a middleware for Express in development
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -193,23 +193,19 @@ async function startServer() {
     // In production, serve the built static dist directory
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*all", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    app.use((req, res, next) => {
+      if (req.method === "GET") {
+        res.sendFile(path.join(distPath, "index.html"));
+      } else {
+        next();
+      }
     });
   }
 
-  if (process.env.PORT) {
-    // Under cPanel/Passenger, process.env.PORT can be a UNIX socket path or a number. We listen without host binding.
-    const listenTarget = isNaN(Number(process.env.PORT)) ? process.env.PORT : Number(process.env.PORT);
-    app.listen(listenTarget, () => {
-      console.log(`Ehsan Store Server running on port ${process.env.PORT}`);
-    });
-  } else {
-    // Under local/Docker development, bind to 3000 on "0.0.0.0"
-    app.listen(3000, "0.0.0.0", () => {
-      console.log(`Ehsan Store Server running on port 3000`);
-    });
-  }
+  const PORT = 3000;
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Ehsan Store Server running on http://localhost:${PORT}`);
+  });
 }
 
 startServer();
