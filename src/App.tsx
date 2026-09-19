@@ -2518,7 +2518,10 @@ export default function App() {
     const saved = localStorage.getItem('ehsan_products');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 500) {
+          return parsed;
+        }
       } catch (err) {
         // Fallback
       }
