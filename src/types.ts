@@ -52,6 +52,40 @@ export interface Settings {
   showAllProductsCategory?: boolean;
   showAvailableCategory?: boolean;
   showOutOfStockCategory?: boolean;
+  lastPriceUpdate?: string;
+}
+
+export interface CartItem {
+  product: Product;
+  quantity: number;
+}
+
+export interface OrderItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  currency: Currency;
+  priceValue: number;
+  tomanPrice: number;
+  isDirham: boolean;
+  image?: string;
+}
+
+export type OrderStatus = 'pending' | 'processing' | 'confirmed' | 'completed' | 'cancelled';
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  customerNotes?: string;
+  items: OrderItem[];
+  totalToman: number;
+  totalAED: number;
+  hasAEDItems: boolean;
+  status: OrderStatus;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface PriceHistory {

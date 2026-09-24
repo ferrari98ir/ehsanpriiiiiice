@@ -39,7 +39,7 @@ import {
   Gamepad2,
   Crown,
   Battery,
-  Sparkles,
+  ShoppingBag,
   Camera,
   Zap,
   Fingerprint,
@@ -48,11 +48,16 @@ import {
   AudioLines,
   GripVertical,
   FolderPlus,
-  FolderMinus
+  FolderMinus,
+  Clock,
+  Store,
+  Minus
 } from 'lucide-react';
-import { Product, Category, Settings, Currency, PriceHistory, Media, BannerItem } from './types';
+import { Product, Category, Settings, Currency, PriceHistory, Media, BannerItem, CartItem, Order } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_SETTINGS } from './data';
 import { LazyImage } from './components/LazyImage';
+import { CartModal, InvoiceModal, formatRelativeTime } from './components/CartAndInvoiceModal';
+import { OrdersManagementView } from './components/OrdersManagementView';
 
 const DEFAULT_IMAGE = "https://ehsanstoreiran.ir/file/ehsan.jpg";
 
@@ -67,7 +72,8 @@ const ICON_MAP: Record<string, React.ComponentType<any>> = {
   Gamepad2,
   Crown,
   Battery,
-  Sparkles,
+  Store,
+  ShoppingBag,
   Camera,
   Zap,
   Fingerprint,
@@ -93,7 +99,8 @@ const SELECTABLE_ICONS = [
   { name: 'Gamepad2', label: 'بازی', icon: Gamepad2 },
   { name: 'Crown', label: 'برند', icon: Crown },
   { name: 'Battery', label: 'باتری', icon: Battery },
-  { name: 'Sparkles', label: 'درخشش', icon: Sparkles },
+  { name: 'Store', label: 'فروشگاه', icon: Store },
+  { name: 'ShoppingBag', label: 'خرید', icon: ShoppingBag },
   { name: 'Camera', label: 'دوربین', icon: Camera },
   { name: 'Zap', label: 'انرژی', icon: Zap },
   { name: 'Fingerprint', label: 'ناتینگ', icon: Fingerprint },
@@ -127,7 +134,7 @@ const getCategoryIconComponent = (cat: Category, isActive: boolean, size: number
     case 'cat-console-games': return <Gamepad2 {...props} />;
     case 'cat-ferrari': return <Crown {...props} />;
     case 'cat-anker': return <Battery {...props} />;
-    case 'cat-philips': return <Sparkles {...props} />;
+    case 'cat-philips': return <Package {...props} />;
     case 'cat-dji': return <Camera {...props} />;
     case 'cat-hollyland': return <Mic {...props} />;
     case 'cat-powerology': return <Zap {...props} />;
@@ -246,9 +253,32 @@ const convertToToman = (value: number, currency: Currency, rates: Settings) => {
   return value;
 };
 
+export const isProductDirham = (p: { currency?: Currency; priceAED?: number; priceIRT?: number; priceValue?: number }): boolean => {
+  if (p.currency === 'AED') return true;
+  if (p.priceAED !== undefined && p.priceAED > 0 && (!p.priceIRT || p.priceIRT === 0)) return true;
+  return false;
+};
+
 // --- Components ---
 
-const ProductDetail = ({ product, onClose, rates, isStaffView }: { product: Product, onClose: () => void, rates: Settings, isStaffView?: boolean }) => {
+const ProductDetail = ({ 
+  product, 
+  onClose, 
+  rates, 
+  isStaffView,
+  cartQuantity = 0,
+  onAddToCart,
+  onUpdateQuantity
+}: { 
+  product: Product, 
+  onClose: () => void, 
+  rates: Settings, 
+  isStaffView?: boolean,
+  cartQuantity?: number,
+  onAddToCart?: (p: Product, qty: number) => void,
+  onUpdateQuantity?: (productId: string, qty: number) => void
+}) => {
+  const isDirham = isProductDirham(product);
   const displayToman = product.priceIRT !== undefined && product.priceIRT > 0 ? product.priceIRT : (product.currency === 'IRT' ? product.priceValue : null);
   const displayDirham = product.priceAED !== undefined && product.priceAED > 0 ? product.priceAED : (product.currency === 'AED' ? product.priceValue : null);
   const displayYuan = product.priceCNY !== undefined && product.priceCNY > 0 ? product.priceCNY : (product.currency === 'CNY' ? product.priceValue : null);
@@ -328,31 +358,80 @@ const ProductDetail = ({ product, onClose, rates, isStaffView }: { product: Prod
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
             <h2 className="text-2xl font-black text-gray-900">{product.name}</h2>
             <div className="flex flex-wrap gap-2 items-center">
-              <div className="bg-indigo-600 text-white px-4 py-2 rounded-xl border border-indigo-700 shadow-sm shadow-indigo-100">
-                <span className="text-xl font-black">{formatPrice(finalToman)}</span>
-                <span className="text-xs mr-1">تومان</span>
-              </div>
-              {hasDirham && (
-                <div className="bg-amber-50 text-amber-700 px-4 py-2 rounded-xl border border-amber-100">
-                  <span className="text-xl font-black">{formatPrice(displayDirham)}</span>
-                  <span className="text-xs mr-1">درهم</span>
+              {isDirham ? (
+                <div className="bg-amber-500 text-white px-5 py-2.5 rounded-2xl border border-amber-600 shadow-md shadow-amber-500/20 flex items-center gap-1.5">
+                  <span className="text-2xl font-black">{formatPrice(displayDirham || product.priceValue)}</span>
+                  <span className="text-xs font-bold mr-1">درهم</span>
                 </div>
-              )}
-              {hasYuan && (
-                <div className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl border border-purple-100">
-                  <span className="text-xl font-black">{formatPrice(displayYuan)}</span>
-                  <span className="text-xs mr-1">یوان</span>
-                </div>
+              ) : (
+                <>
+                  <div className="bg-indigo-600 text-white px-4 py-2 rounded-xl border border-indigo-700 shadow-sm shadow-indigo-100">
+                    <span className="text-xl font-black">{formatPrice(finalToman)}</span>
+                    <span className="text-xs mr-1">تومان</span>
+                  </div>
+                  {hasDirham && (
+                    <div className="bg-amber-50 text-amber-700 px-4 py-2 rounded-xl border border-amber-100">
+                      <span className="text-xl font-black">{formatPrice(displayDirham)}</span>
+                      <span className="text-xs mr-1">درهم</span>
+                    </div>
+                  )}
+                  {hasYuan && (
+                    <div className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl border border-purple-100">
+                      <span className="text-xl font-black">{formatPrice(displayYuan)}</span>
+                      <span className="text-xs mr-1">یوان</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
 
-          {product.currency === 'AED' && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl text-xs font-bold leading-relaxed flex items-center gap-2 text-right justify-start">
-              <span className="text-base shrink-0">⚠️</span>
-              <span>قیمت‌ها بر اساس نرخ لحظه‌ای درهم محاسبه می‌شود؛ برای استعلام دقیق قیمت تماس بگیرید.</span>
+          {isDirham && (
+            <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-400/40 text-amber-900 px-4 py-3.5 rounded-2xl text-xs md:text-sm font-bold leading-relaxed flex items-center gap-2.5 text-right justify-start shadow-xs">
+              <span className="text-lg md:text-xl shrink-0">⚠️</span>
+              <span>نرخ لحظه‌ای درهم؛ برای استعلام دقیق تماس بگیرید.</span>
             </div>
           )}
+
+          {/* Add to Cart Section */}
+          <div className="mt-2">
+            {product.isOutOfStock ? (
+              <div className="w-full bg-slate-100 text-slate-400 py-3.5 rounded-2xl text-center text-sm font-black cursor-not-allowed">
+                این کالا در حال حاضر ناموجود است 📦
+              </div>
+            ) : onAddToCart ? (
+              cartQuantity > 0 ? (
+                <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-2xl p-2 shadow-xs">
+                  <button
+                    onClick={() => onAddToCart(product, 1)}
+                    className="w-11 h-11 rounded-xl bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center transition-all shadow-sm cursor-pointer"
+                    title="افزایش تعداد"
+                  >
+                    <Plus size={18} />
+                  </button>
+                  <div className="text-center">
+                    <span className="text-sm md:text-base font-black text-purple-950 block">{cartQuantity} عدد در سبد خرید شما</span>
+                    <span className="text-[10px] text-purple-600 font-bold">جهت نهایی‌سازی، روی سبد خرید بالای صفحه بزنید</span>
+                  </div>
+                  <button
+                    onClick={() => onUpdateQuantity && onUpdateQuantity(product.id, cartQuantity - 1)}
+                    className="w-11 h-11 rounded-xl bg-white hover:bg-red-50 text-red-600 border border-slate-200 flex items-center justify-center transition-all shadow-sm cursor-pointer"
+                    title={cartQuantity > 1 ? "کاهش تعداد" : "حذف از سبد"}
+                  >
+                    {cartQuantity > 1 ? <Minus size={18} /> : <Trash2 size={18} />}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => onAddToCart(product, 1)}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-[0.99] text-white py-4 rounded-2xl font-black text-sm md:text-base flex items-center justify-center gap-2.5 shadow-lg shadow-purple-600/25 transition-all cursor-pointer"
+                >
+                  <ShoppingCart size={20} />
+                  <span>افزودن به سبد خرید و صدور پیش‌فاکتور</span>
+                </button>
+              )
+            ) : null}
+          </div>
 
           {isStaffView && (
             <div className="bg-violet-50/70 border-2 border-dashed border-violet-200 p-5 rounded-3xl text-right animate-fade-in shadow-inner">
@@ -611,7 +690,7 @@ const AdminView = ({
   settings: Settings,
   setSettings: React.Dispatch<React.SetStateAction<Settings>>
 }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'quick-edit' | 'categories' | 'settings'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'quick-edit' | 'categories' | 'settings' | 'orders'>('products');
   const [draggedCatIndex, setDraggedCatIndex] = useState<number | null>(null);
   
   // Quick Edit States & Helpers
@@ -680,11 +759,16 @@ const AdminView = ({
       const updated = { ...p, ...updates };
       
       // Update priceValue if corresponding manually overridden currency price was changed
+      if (updates.priceAED !== undefined) {
+        if (updates.priceAED > 0 && (!updated.priceIRT || updated.priceIRT === 0)) {
+          updated.currency = 'AED';
+          updated.priceValue = updates.priceAED;
+        } else if (updated.currency === 'AED') {
+          updated.priceValue = updates.priceAED;
+        }
+      }
       if (updates.priceIRT !== undefined && updated.currency === 'IRT') {
         updated.priceValue = updates.priceIRT;
-      }
-      if (updates.priceAED !== undefined && updated.currency === 'AED') {
-        updated.priceValue = updates.priceAED;
       }
       if (updates.priceCNY !== undefined && updated.currency === 'CNY') {
         updated.priceValue = updates.priceCNY;
@@ -773,13 +857,46 @@ const AdminView = ({
     }
   };
 
-  const saveQuickEdits = () => {
-    setProducts(draftProducts);
-    alert("تمامی تغییرات با موفقیت ذخیره شدند.");
+  const [isSavingQuickEdits, setIsSavingQuickEdits] = useState(false);
+
+  const saveQuickEdits = async () => {
+    setIsSavingQuickEdits(true);
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: draftProducts })
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `خطای سرور (${res.status})`);
+      }
+      setProducts(draftProducts);
+      alert("تمامی تغییرات با موفقیت در سرور ذخیره شدند.");
+    } catch (err: any) {
+      console.error("Failed to save quick edits:", err);
+      alert(`خطا در ذخیره تغییرات در سرور: ${err.message || err}`);
+    } finally {
+      setIsSavingQuickEdits(false);
+    }
   };
 
-  const saveSingleProduct = (pDraft: Product) => {
-    setProducts(prev => prev.map(p => p.id === pDraft.id ? pDraft : p));
+  const saveSingleProduct = async (pDraft: Product) => {
+    try {
+      const res = await fetch('/api/products/single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: pDraft })
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `خطای سرور (${res.status})`);
+      }
+      setProducts(prev => prev.map(p => p.id === pDraft.id ? pDraft : p));
+    } catch (err: any) {
+      console.error("Save single product failed:", err);
+      alert(`خطا در ذخیره کالا در سرور: ${err.message || err}`);
+    }
   };
 
   const filteredQuickProducts = useMemo(() => {
@@ -899,16 +1016,60 @@ const AdminView = ({
     }
   };
 
-  const saveProduct = () => {
-    if (editingId) {
-      setProducts(prev => prev.map(p => p.id === editingId ? { ...pForm, id: editingId } : p));
-    } else {
-      const newProduct: Product = { ...pForm, id: Math.random().toString(36).substring(2, 9) };
-      setProducts(prev => [newProduct, ...prev]);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+  const saveProduct = async () => {
+    if (!pForm.name.trim()) {
+      alert("لطفاً نام کالا را وارد کنید");
+      return;
     }
-    
-    setIsFormOpen(false);
-    resetForm();
+
+    const finalForm = { ...pForm };
+    if (finalForm.priceAED && finalForm.priceAED > 0 && (!finalForm.priceIRT || finalForm.priceIRT === 0)) {
+      finalForm.currency = 'AED';
+      finalForm.priceValue = finalForm.priceAED;
+    } else if (finalForm.currency === 'AED') {
+      if (finalForm.priceAED && finalForm.priceAED > 0) {
+        finalForm.priceValue = finalForm.priceAED;
+      } else if (finalForm.priceValue > 0) {
+        finalForm.priceAED = finalForm.priceValue;
+      }
+    }
+
+    const productToSave: Product = editingId
+      ? { ...finalForm, id: editingId }
+      : { ...finalForm, id: Math.random().toString(36).substring(2, 9), createdAt: new Date().toISOString() };
+
+    setIsSavingProduct(true);
+    try {
+      // 1. Direct save to server
+      const res = await fetch('/api/products/single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: productToSave })
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `خطای سرور (${res.status})`);
+      }
+
+      // 2. Update local state
+      if (editingId) {
+        setProducts(prev => prev.map(p => p.id === editingId ? productToSave : p));
+      } else {
+        setProducts(prev => [productToSave, ...prev]);
+      }
+
+      setIsFormOpen(false);
+      resetForm();
+      alert(editingId ? "کالا با موفقیت ویرایش و در سرور ذخیره شد." : "کالای جدید با موفقیت در سرور ثبت شد.");
+    } catch (err: any) {
+      console.error("Save product failed:", err);
+      alert(`خطا در ذخیره‌سازی روی سرور: ${err.message || err}\nاطلاعات در سرور ذخیره نشد، لطفاً مجدداً بررسی کنید.`);
+    } finally {
+      setIsSavingProduct(false);
+    }
   };
 
   const getProductThumbnail = (p: Product) => {
@@ -960,9 +1121,20 @@ const AdminView = ({
     setIsFormOpen(true);
   };
 
-  const deleteProduct = (id: string) => {
-    if (confirm("آیا از حذف این کالا مطمئن هستید؟")) {
+  const deleteProduct = async (id: string) => {
+    if (!confirm("آیا از حذف این کالا مطمئن هستید؟")) return;
+
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `خطای سرور (${res.status})`);
+      }
       setProducts(prev => prev.filter(p => p.id !== id));
+      alert("کالا با موفقیت از سرور حذف شد.");
+    } catch (err: any) {
+      console.error("Delete product error:", err);
+      alert(`خطا در حذف کالا از سرور: ${err.message || err}`);
     }
   };
 
@@ -1107,10 +1279,12 @@ const AdminView = ({
                 value={pForm.priceAED || ''}
                 onChange={e => {
                   const val = Number(e.target.value);
+                  const shouldDefaultToAED = val > 0 && (!pForm.priceIRT || pForm.priceIRT === 0);
                   setPForm({
                     ...pForm,
                     priceAED: val,
-                    priceValue: pForm.currency === 'AED' ? val : pForm.priceValue
+                    currency: shouldDefaultToAED ? 'AED' : pForm.currency,
+                    priceValue: shouldDefaultToAED ? val : (pForm.currency === 'AED' ? val : pForm.priceValue)
                   });
                 }}
               />
@@ -1242,8 +1416,14 @@ const AdminView = ({
         </div>
 
         <div className="flex gap-2 mt-4">
-          <button onClick={saveProduct} className="flex-1 bg-green-600 text-white p-4 rounded-xl font-bold">ذخیره نهایی</button>
-          <button onClick={() => { setIsFormOpen(false); setEditingId(null); }} className="flex-1 bg-gray-200 p-4 rounded-xl font-bold">انصراف</button>
+          <button 
+            onClick={saveProduct} 
+            disabled={isSavingProduct}
+            className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 text-white p-4 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+          >
+            {isSavingProduct ? "در حال ذخیره در سرور..." : "ذخیره نهایی"}
+          </button>
+          <button onClick={() => { setIsFormOpen(false); setEditingId(null); }} className="flex-1 bg-gray-200 hover:bg-gray-300 p-4 rounded-xl font-bold cursor-pointer transition-colors">انصراف</button>
         </div>
       </div>
     );
@@ -1264,15 +1444,15 @@ const AdminView = ({
       </div>
 
       <div className="flex gap-2 p-4 overflow-x-auto bg-white border-b border-gray-100 shadow-sm sticky top-[68px] z-30 font-sans">
-        {(['products', 'quick-edit', 'categories', 'settings'] as const).map(tab => (
+        {(['products', 'quick-edit', 'categories', 'settings', 'orders'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-colors ${
-              activeTab === tab ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'
+            className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-colors cursor-pointer ${
+              activeTab === tab ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
           >
-            {tab === 'products' ? 'محصولات' : tab === 'quick-edit' ? 'ویرایش سریع کالاها' : tab === 'categories' ? 'دسته‌بندی' : 'تنظیمات نرخ'}
+            {tab === 'products' ? 'محصولات' : tab === 'quick-edit' ? 'ویرایش سریع کالاها' : tab === 'categories' ? 'دسته‌بندی' : tab === 'settings' ? 'تنظیمات نرخ' : '📋 فاکتورها و سفارشات'}
           </button>
         ))}
       </div>
@@ -1339,10 +1519,22 @@ const AdminView = ({
                         createdAt: new Date().toISOString()
                       }));
 
-                      setProducts(prev => [...newProducts, ...prev]);
+                      const updated = [...newProducts, ...products];
+                      setProducts(updated);
                       textarea.value = '';
                       setIsBulkAddOpen(false);
-                      alert(`${newProducts.length} کالا با موفقیت اضافه شد. برای ثبت قیمت به تب «ویرایش سریع» بروید.`);
+
+                      fetch('/api/products', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ products: updated })
+                      }).then(res => {
+                        if (!res.ok) throw new Error("سرور خطا داد");
+                        alert(`${newProducts.length} کالا با موفقیت اضافه و در سرور ذخیره شد. برای ثبت قیمت به تب «ویرایش سریع» بروید.`);
+                      }).catch(err => {
+                        console.error(err);
+                        alert(`کالاها در صفحه افزوده شدند اما ذخیره در سرور با خطا مواجه شد: ${err.message}`);
+                      });
                     }}
                     className="flex-1 bg-purple-600 text-white p-4 rounded-xl font-bold text-xs shadow-md shadow-purple-100 hover:bg-purple-700 transition-all"
                   >
@@ -1386,13 +1578,13 @@ const AdminView = ({
                         )}
                       </div>
                       <div className="text-xs text-gray-500 flex flex-wrap gap-2 pt-1 font-medium">
-                        {(p.priceIRT !== undefined && p.priceIRT > 0) || p.currency === 'IRT' ? (
+                        {!isProductDirham(p) && ((p.priceIRT !== undefined && p.priceIRT > 0) || p.currency === 'IRT') ? (
                           <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">تومان: {formatPrice(p.priceIRT || p.priceValue)}</span>
                         ) : null}
-                        {(p.priceAED !== undefined && p.priceAED > 0) || p.currency === 'AED' ? (
+                        {isProductDirham(p) || (p.priceAED !== undefined && p.priceAED > 0) || p.currency === 'AED' ? (
                           <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded text-[10px]">درهم: {formatPrice(p.priceAED || p.priceValue)}</span>
                         ) : null}
-                        {(p.priceCNY !== undefined && p.priceCNY > 0) || p.currency === 'CNY' ? (
+                        {!isProductDirham(p) && ((p.priceCNY !== undefined && p.priceCNY > 0) || p.currency === 'CNY') ? (
                           <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-[10px]">یوان: {formatPrice(p.priceCNY || p.priceValue)}</span>
                         ) : null}
                       </div>
@@ -2506,6 +2698,12 @@ const AdminView = ({
             </div>
           </div>
         )}
+
+        {activeTab === 'orders' && (
+          <div className="-mx-4 -my-4">
+            <OrdersManagementView onExit={() => setActiveTab('products')} settings={settings} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2604,30 +2802,32 @@ export default function App() {
           if (data.settings && typeof data.settings === 'object' && Object.keys(data.settings).length > 0) {
             setSettings(data.settings);
           }
+          setIsInitialized(true);
         }
       } catch (err) {
         console.error("Failed to fetch data from database, falling back to local files & localStorage", err);
       } finally {
         setLoading(false);
-        setIsInitialized(true);
       }
     };
     fetchData();
   }, []);
 
+  // Safely cache products locally without crashing on quota exceeded
   useEffect(() => {
-    localStorage.setItem('ehsan_products', JSON.stringify(products));
-    if (isInitialized) {
-      fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products })
-      }).catch(err => console.error("Error saving products:", err));
+    try {
+      localStorage.setItem('ehsan_products', JSON.stringify(products));
+    } catch (e) {
+      console.warn("localStorage quota exceeded for products cache, skipped local write");
     }
-  }, [products, isInitialized]);
+  }, [products]);
 
   useEffect(() => {
-    localStorage.setItem('ehsan_categories', JSON.stringify(categories));
+    try {
+      localStorage.setItem('ehsan_categories', JSON.stringify(categories));
+    } catch (e) {
+      console.warn("localStorage quota exceeded for categories");
+    }
     if (isInitialized) {
       fetch('/api/categories', {
         method: 'POST',
@@ -2638,7 +2838,11 @@ export default function App() {
   }, [categories, isInitialized]);
 
   useEffect(() => {
-    localStorage.setItem('ehsan_settings', JSON.stringify(settings));
+    try {
+      localStorage.setItem('ehsan_settings', JSON.stringify(settings));
+    } catch (e) {
+      console.warn("localStorage quota exceeded for settings");
+    }
     if (isInitialized) {
       fetch('/api/settings', {
         method: 'POST',
@@ -2655,11 +2859,68 @@ export default function App() {
   const [isStaff, setIsStaff] = useState<boolean>(() => localStorage.getItem('ehsan_is_staff') === 'true');
   const [showStaffLogin, setShowStaffLogin] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<'shop' | 'admin' | 'history' | 'staff'>('shop');
+  const [viewMode, setViewMode] = useState<'shop' | 'admin' | 'history' | 'staff' | 'orders'>('shop');
+
+  // Shopping cart state (persistent in localStorage)
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('ehsan_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ehsan_cart', JSON.stringify(cart));
+    } catch (e) {
+      console.warn("Could not persist cart in localStorage");
+    }
+  }, [cart]);
+
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [activeInvoice, setActiveInvoice] = useState<Order | null>(null);
+
+  const addToCart = (product: Product, quantity = 1) => {
+    setCart(prev => {
+      const existingIndex = prev.findIndex(item => item.product.id === product.id);
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = { ...next[existingIndex], quantity: next[existingIndex].quantity + quantity };
+        return next;
+      }
+      return [...prev, { product, quantity }];
+    });
+  };
+
+  const updateCartQuantity = (productId: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+    setCart(prev => prev.map(item => item.product.id === productId ? { ...item, quantity } : item));
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  };
+
+  const clearCart = () => {
+    setCart([]);
+  };
 
   // Handle back button for popup and views
   useEffect(() => {
     const handlePopState = () => {
+      if (activeInvoice) {
+        setActiveInvoice(null);
+        return;
+      }
+      if (isCartOpen) {
+        setIsCartOpen(false);
+        return;
+      }
       // If a product is selected, close it
       if (selectedProduct) {
         setSelectedProduct(null);
@@ -2672,20 +2933,23 @@ export default function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [selectedProduct, viewMode]);
+  }, [selectedProduct, viewMode, isCartOpen, activeInvoice]);
 
   // Push history state whenever a product is selected or view mode changes
   useEffect(() => {
-    if (selectedProduct || viewMode !== 'shop') {
+    if (selectedProduct || viewMode !== 'shop' || isCartOpen || activeInvoice) {
       // Using a flag to identify our pushed state if needed
       window.history.pushState({ modal: true }, "");
     }
-  }, [selectedProduct !== null, viewMode !== 'shop']);
+  }, [selectedProduct !== null, viewMode !== 'shop', isCartOpen, activeInvoice !== null]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const mode = searchParams.get('mode');
-    if (mode === 'admin') setViewMode('admin');
+    const panel = searchParams.get('panel');
+    const orders = searchParams.get('orders');
+    if (panel === 'orders' || orders === 'secret') setViewMode('orders');
+    else if (mode === 'admin') setViewMode('admin');
     else if (mode === 'staff') setViewMode('staff');
     else setViewMode('shop');
   }, []);
@@ -2716,10 +2980,16 @@ export default function App() {
       const q = normalizeFarsi(searchQuery);
       result = result.filter(p => 
         normalizeFarsi(p.name).includes(q) || 
-        normalizeFarsi(p.description).includes(q)
+        normalizeFarsi(p.description || '').includes(q)
       );
     }
-    return result;
+
+    // Always sort: Available products first, Out-of-stock products at the end
+    return [...result].sort((a, b) => {
+      const aOut = a.isOutOfStock ? 1 : 0;
+      const bOut = b.isOutOfStock ? 1 : 0;
+      return aOut - bOut;
+    });
   }, [products, selectedCategory, searchQuery]);
 
   useEffect(() => {
@@ -2779,7 +3049,7 @@ export default function App() {
       case 'cat-console-games': return <Gamepad2 {...props} />;
       case 'cat-ferrari': return <Crown {...props} />;
       case 'cat-anker': return <Battery {...props} />;
-      case 'cat-philips': return <Sparkles {...props} />;
+      case 'cat-philips': return <Package {...props} />;
       case 'cat-dji': return <Camera {...props} />;
       case 'cat-hollyland': return <Mic {...props} />;
       case 'cat-powerology': return <Zap {...props} />;
@@ -2839,6 +3109,15 @@ export default function App() {
     />
   );
   if (viewMode === 'history') return <HistoryView onExit={() => { setViewMode('shop'); window.history.replaceState(null, '', window.location.pathname); }} history={[]} />;
+  if (viewMode === 'orders') return (
+    <OrdersManagementView 
+      onExit={() => { 
+        setViewMode('shop'); 
+        window.history.replaceState(null, '', window.location.pathname); 
+      }} 
+      settings={settings} 
+    />
+  );
 
   return (
     <div 
@@ -2874,28 +3153,51 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="h-20 px-8 flex justify-between items-center sticky top-0 bg-white/70 backdrop-blur-md border-b border-purple-100 z-30 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-purple-500/30 shadow-lg">
-            <ShoppingCart className="w-6 h-6 text-white" />
+      <header className="h-20 px-4 md:px-8 flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-md border-b border-purple-100 z-30 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-purple-500/30 shadow-lg text-white">
+            <Store className="w-5 h-5 text-white" />
           </div>
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-black tracking-tight text-purple-950">احسان استور</h1>
+          <div className="flex flex-col text-right">
+            <h1 className="text-xl md:text-2xl font-black tracking-tight text-purple-950">احسان استور</h1>
+            <span className="text-[10px] text-purple-700 font-bold flex items-center gap-1">
+              <Clock size={11} className="text-purple-500" />
+              <span>آخرین بروزرسانی قیمت: {formatRelativeTime(settings.lastPriceUpdate || '2026-09-24T03:00:00Z')}</span>
+            </span>
           </div>
         </div>
 
-        {settings.showGlobalRates !== false && (
-          <div className="hidden md:flex gap-4">
-            <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-1.5 flex items-center gap-3 shadow-xs">
-              <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">نرخ یوان</span>
-              <span className="text-lg font-bold text-purple-700">{formatPrice(Number(settings.cnyRate))}</span>
+        <div className="flex items-center gap-2.5 md:gap-4">
+          {settings.showGlobalRates !== false && (
+            <div className="hidden lg:flex gap-3">
+              <div className="bg-purple-50 border border-purple-100 rounded-xl px-3.5 py-1.5 flex items-center gap-2 shadow-2xs">
+                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">نرخ یوان</span>
+                <span className="text-base font-bold text-purple-700">{formatPrice(Number(settings.cnyRate))}</span>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-1.5 flex items-center gap-2 shadow-2xs">
+                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">نرخ درهم</span>
+                <span className="text-base font-bold text-amber-700">{formatPrice(Number(settings.aedRate))}</span>
+              </div>
             </div>
-            <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-1.5 flex items-center gap-3 shadow-xs">
-              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">نرخ درهم</span>
-              <span className="text-lg font-bold text-amber-700">{formatPrice(Number(settings.aedRate))}</span>
+          )}
+
+          {/* Shopping Cart Button */}
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="relative bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-95 text-white px-3.5 md:px-5 py-2.5 rounded-2xl flex items-center gap-2 shadow-md shadow-purple-600/25 transition-all cursor-pointer"
+            title="مشاهده سبد خرید و صدور پیش‌فاکتور"
+          >
+            <div className="relative">
+              <ShoppingCart size={19} />
+              {cart.length > 0 && (
+                <span className="absolute -top-3 -right-3 bg-red-600 border-2 border-white text-white text-[10px] font-black rounded-full min-w-[20px] h-[20px] px-1 flex items-center justify-center shadow-lg animate-bounce">
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                </span>
+              )}
             </div>
-          </div>
-        )}
+            <span className="text-xs md:text-sm font-black">سبد خرید</span>
+          </button>
+        </div>
       </header>
 
       {/* 1. Search Box - First item at the top */}
@@ -3145,7 +3447,7 @@ export default function App() {
               </div>
               
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center border border-purple-200 shadow-purple-200/20 shadow-lg shrink-0">
-                <Sparkles size={28} className="text-purple-600 animate-pulse" />
+                <Store size={28} className="text-purple-600" />
               </div>
             </div>
           </div>
@@ -3278,6 +3580,7 @@ export default function App() {
               </div>
             ) : (
               filteredProducts.map((p, index) => {
+                const isDirham = isProductDirham(p);
                 const displayToman = p.priceIRT !== undefined && p.priceIRT > 0 ? p.priceIRT : (p.currency === 'IRT' ? p.priceValue : null);
                 const displayDirham = p.priceAED !== undefined && p.priceAED > 0 ? p.priceAED : (p.currency === 'AED' ? p.priceValue : null);
                 const displayYuan = p.priceCNY !== undefined && p.priceCNY > 0 ? p.priceCNY : (p.currency === 'CNY' ? p.priceValue : null);
@@ -3323,17 +3626,17 @@ export default function App() {
                             موجود
                           </span>
                         )}
-                        {(p.priceIRT !== undefined && p.priceIRT > 0) || p.currency === 'IRT' ? (
+                        {!isDirham && ((p.priceIRT !== undefined && p.priceIRT > 0) || p.currency === 'IRT') ? (
                           <span className="bg-purple-100/50 border border-purple-200/40 text-purple-800 px-1.5 py-0.5 rounded-lg text-[7px] md:text-[9px] font-extrabold uppercase tracking-wider whitespace-nowrap">
                             تومانی
                           </span>
                         ) : null}
-                        {(p.priceAED !== undefined && p.priceAED > 0) || p.currency === 'AED' ? (
+                        {isDirham ? (
                           <span className="bg-amber-50 border border-amber-200 text-amber-700 px-1.5 py-0.5 rounded-lg text-[7px] md:text-[9px] font-extrabold uppercase tracking-wider whitespace-nowrap animate-none">
                             درهمی
                           </span>
                         ) : null}
-                        {(p.priceCNY !== undefined && p.priceCNY > 0) || p.currency === 'CNY' ? (
+                        {!isDirham && ((p.priceCNY !== undefined && p.priceCNY > 0) || p.currency === 'CNY') ? (
                           <span className="bg-teal-50 border border-teal-200 text-teal-700 px-1.5 py-0.5 rounded-lg text-[7px] md:text-[9px] font-extrabold uppercase tracking-wider whitespace-nowrap">
                             یوانی
                           </span>
@@ -3350,47 +3653,53 @@ export default function App() {
                         <div className="flex flex-col gap-1 w-[calc(100%-3.2rem)] text-right">
                           <span className="text-slate-500 text-[8px] md:text-[9px] font-bold uppercase tracking-wider">قیمت مصرف کننده</span>
                           <div className="flex flex-col gap-1.5">
-                            <div className="flex items-baseline gap-0.5 md:gap-1 h-6 md:h-8 overflow-hidden relative">
-                              <div className="flex items-baseline gap-0.5 md:gap-1">
-                                <AnimatePresence mode="popLayout" initial={false}>
-                                  <motion.span
-                                    key={finalToman}
-                                    initial={{ y: 15, opacity: 0, color: "#10b981" }}
-                                    animate={{ 
-                                      y: 0, 
-                                      opacity: 1, 
-                                      color: ["#10b981", "#10b981", "#6d28d9"],
-                                      transition: {
-                                        y: { type: "spring", stiffness: 260, damping: 20 },
-                                        opacity: { duration: 0.15 },
-                                        color: { duration: 1.5, times: [0, 0.5, 1] }
-                                      }
-                                    }}
-                                    exit={{ y: -15, opacity: 0 }}
-                                    className="text-sm md:text-xl font-black inline-block text-purple-700"
-                                  >
-                                    {formatPrice(finalToman)}
-                                  </motion.span>
-                                </AnimatePresence>
-                                <span className="text-[10px] font-bold text-slate-500 self-center">تومان</span>
+                            {isDirham ? (
+                              <div className="flex items-baseline gap-1 h-6 md:h-8">
+                                <span className="text-sm md:text-xl font-black text-amber-600">
+                                  {formatPrice(displayDirham || p.priceValue)}
+                                </span>
+                                <span className="text-[10px] md:text-xs font-bold text-amber-800">درهم</span>
                               </div>
-                            </div>
-                            {hasDirham && (
-                              <div className="flex items-baseline gap-1 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 self-start text-amber-700">
-                                <span className="text-[11px] md:text-xs font-black">{formatPrice(displayDirham)}</span>
-                                <span className="text-[9px] font-bold text-amber-500">درهم</span>
-                              </div>
-                            )}
-                            {hasYuan && !hasDirham && (
-                              <div className="flex items-baseline gap-1 bg-teal-50 px-2 py-0.5 rounded-lg border border-teal-100 self-start text-teal-700">
-                                <span className="text-[11px] md:text-xs font-black">{formatPrice(displayYuan)}</span>
-                                <span className="text-[9px] font-bold text-teal-500">یوان</span>
-                              </div>
-                            )}
-                            {p.currency === 'AED' && (
-                              <div className="text-[8px] md:text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200/50 px-2 py-1.5 rounded-lg leading-normal mt-1 text-right w-full">
-                                ⚠️ نرخ لحظه‌ای درهم؛ برای استعلام دقیق تماس بگیرید.
-                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-baseline gap-0.5 md:gap-1 h-6 md:h-8 overflow-hidden relative">
+                                  <div className="flex items-baseline gap-0.5 md:gap-1">
+                                    <AnimatePresence mode="popLayout" initial={false}>
+                                      <motion.span
+                                        key={finalToman}
+                                        initial={{ y: 15, opacity: 0, color: "#10b981" }}
+                                        animate={{ 
+                                          y: 0, 
+                                          opacity: 1, 
+                                          color: ["#10b981", "#10b981", "#6d28d9"],
+                                          transition: {
+                                            y: { type: "spring", stiffness: 260, damping: 20 },
+                                            opacity: { duration: 0.15 },
+                                            color: { duration: 1.5, times: [0, 0.5, 1] }
+                                          }
+                                        }}
+                                        exit={{ y: -15, opacity: 0 }}
+                                        className="text-sm md:text-xl font-black inline-block text-purple-700"
+                                      >
+                                        {formatPrice(finalToman)}
+                                      </motion.span>
+                                    </AnimatePresence>
+                                    <span className="text-[10px] font-bold text-slate-500 self-center">تومان</span>
+                                  </div>
+                                </div>
+                                {hasDirham && (
+                                  <div className="flex items-baseline gap-1 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 self-start text-amber-700">
+                                    <span className="text-[11px] md:text-xs font-black">{formatPrice(displayDirham)}</span>
+                                    <span className="text-[9px] font-bold text-amber-500">درهم</span>
+                                  </div>
+                                )}
+                                {hasYuan && !hasDirham && (
+                                  <div className="flex items-baseline gap-1 bg-teal-50 px-2 py-0.5 rounded-lg border border-teal-100 self-start text-teal-700">
+                                    <span className="text-[11px] md:text-xs font-black">{formatPrice(displayYuan)}</span>
+                                    <span className="text-[9px] font-bold text-teal-500">یوان</span>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -3401,6 +3710,14 @@ export default function App() {
                           <ChevronLeft size={16} className="md:w-5 md:h-5" />
                         </button>
                       </div>
+
+                      {/* Dirham Alert Banner - full rectangular width */}
+                      {isDirham && (
+                        <div className="mt-2.5 w-full bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-400/35 text-amber-950 px-2.5 py-1.5 rounded-xl text-[9px] md:text-[10px] font-bold flex items-center gap-1.5 shadow-2xs text-right leading-tight">
+                          <span className="shrink-0 text-xs">⚠️</span>
+                          <span>نرخ لحظه‌ای درهم؛ برای استعلام دقیق تماس بگیرید.</span>
+                        </div>
+                      )}
 
                       {viewMode === 'staff' && (
                         <div className="mt-3.5 pt-3 border-t border-dashed border-purple-200 bg-purple-50 p-2.5 rounded-xl text-right text-[10px] md:text-xs">
@@ -3433,6 +3750,46 @@ export default function App() {
                           </div>
                         </div>
                       )}
+
+                      {/* Add to Cart in Product Card */}
+                      <div className="mt-3 pt-2.5 border-t border-purple-100/60">
+                        {p.isOutOfStock ? (
+                          <div className="w-full bg-slate-100 text-slate-400 py-2 rounded-xl text-center text-[10px] md:text-xs font-black cursor-not-allowed">
+                            ناموجود در انبار
+                          </div>
+                        ) : (() => {
+                          const cartItem = cart.find(item => item.product.id === p.id);
+                          return cartItem ? (
+                            <div className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-xl p-1 shadow-2xs">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); addToCart(p, 1); }}
+                                className="w-7 h-7 rounded-lg bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                                title="افزایش تعداد"
+                              >
+                                <Plus size={13} />
+                              </button>
+                              <span className="text-[11px] font-black text-purple-950">
+                                {cartItem.quantity} در سبد
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); updateCartQuantity(p.id, cartItem.quantity - 1); }}
+                                className="w-7 h-7 rounded-lg bg-white hover:bg-red-50 text-red-600 border border-slate-200 flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                                title={cartItem.quantity > 1 ? "کاهش تعداد" : "حذف از سبد"}
+                              >
+                                {cartItem.quantity > 1 ? <Minus size={13} /> : <Trash2 size={13} />}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); addToCart(p, 1); }}
+                              className="w-full bg-purple-600 hover:bg-purple-700 active:scale-[0.98] text-white py-2 rounded-xl text-[10px] md:text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs shadow-purple-600/20 cursor-pointer"
+                            >
+                              <ShoppingCart size={13} />
+                              <span>افزودن به سبد</span>
+                            </button>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -3452,6 +3809,35 @@ export default function App() {
             onClose={() => setSelectedProduct(null)} 
             rates={settings}
             isStaffView={viewMode === 'staff'}
+            cartQuantity={cart.find(c => c.product.id === selectedProduct.id)?.quantity || 0}
+            onAddToCart={addToCart}
+            onUpdateQuantity={updateCartQuantity}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Shopping Cart Modal */}
+      <AnimatePresence>
+        {isCartOpen && (
+          <CartModal
+            isOpen={isCartOpen}
+            onClose={() => setIsCartOpen(false)}
+            cart={cart}
+            onUpdateQuantity={updateCartQuantity}
+            onRemoveItem={removeFromCart}
+            onClearCart={clearCart}
+            onOrderSuccess={(order) => setActiveInvoice(order)}
+            rates={settings}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Printable Invoice Modal */}
+      <AnimatePresence>
+        {activeInvoice && (
+          <InvoiceModal
+            order={activeInvoice}
+            onClose={() => setActiveInvoice(null)}
           />
         )}
       </AnimatePresence>
@@ -3464,22 +3850,28 @@ export default function App() {
             <p className="text-slate-600 text-sm leading-relaxed max-w-xl mx-auto md:mx-0">تمام قیمتها به صورت لحظهای بر اساس نرخ یوان و درهم بازار آزاد تهران آپدیت میشوند. خریدی مطمئن و بدون واسطه.</p>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
-            <div className="bg-white/80 backdrop-blur-md border border-purple-100 rounded-2xl p-4 min-w-[150px] shadow-xs">
-               <div className="text-[10px] uppercase font-bold text-purple-700 mb-1 text-center">وضعیت شبکه</div>
-               <div className="flex items-center justify-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                 <span className="text-xs font-bold text-slate-700">شبکه فعال</span>
+          <div className="w-full md:w-auto flex justify-center md:justify-end">
+            <div className="bg-white/90 backdrop-blur-md border border-purple-200/80 rounded-2xl p-4 min-w-[210px] shadow-xs text-center">
+               <div className="text-[10px] uppercase font-bold text-purple-700 mb-1">آخرین بروزرسانی قیمت‌ها</div>
+               <div className="text-xs font-black text-slate-800 flex items-center justify-center gap-1.5">
+                 <Clock size={14} className="text-purple-600" />
+                 <span>{formatRelativeTime(settings.lastPriceUpdate || '2026-09-24T03:00:00Z')}</span>
                </div>
-            </div>
-            <div className="bg-white/80 backdrop-blur-md border border-purple-100 rounded-2xl p-4 min-w-[150px] shadow-xs">
-               <div className="text-[10px] uppercase font-bold text-purple-700 mb-1 text-center">آخرین بروزرسانی</div>
-               <div className="text-xs font-bold text-center text-slate-700 font-sans">لحظاتی پیش</div>
             </div>
           </div>
         </div>
-        <div className="mt-8 pt-8 border-t border-purple-200/40 text-center text-purple-600 text-[10px] font-bold">
-          © {new Date().getFullYear()} احسان استور - تمامی حقوق محفوظ است
+        <div className="mt-8 pt-8 border-t border-purple-200/40 text-center">
+          <a
+            href="https://ravandsys.ir"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-blue-900 transition-colors font-medium group"
+          >
+            <span>طراحی و توسعه داده شده توسط</span>
+            <span className="font-black text-blue-900 group-hover:text-blue-950 underline decoration-blue-900/40 underline-offset-4">
+              روند
+            </span>
+          </a>
         </div>
       </footer>
 

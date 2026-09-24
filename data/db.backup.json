@@ -1,19 +1,27 @@
 {
   "products": [
     {
+      "id": "test-12345",
+      "name": "تست کالای مقاوم",
+      "description": "توضیحات تست",
+      "categoryIds": [],
+      "priceValue": 100000,
+      "currency": "IRT",
+      "media": {
+        "images": []
+      },
+      "isOutOfStock": false,
+      "createdAt": "2026-09-24T10:45:06.022Z"
+    },
+    {
+      "id": "p-1789795649838-1001-0",
       "name": "5A TYPE C CABLE",
       "description": "",
       "categoryIds": [
         "cat-cable"
       ],
-      "priceValue": 200,
-      "currency": "AED",
-      "priceIRT": 0,
-      "priceCNY": 0,
-      "priceAED": 200,
-      "purchasePriceIRT": 0,
-      "purchasePriceAED": 0,
-      "purchasePriceCNY": 0,
+      "priceValue": 0,
+      "currency": "IRT",
       "media": {
         "images": [
           "https://ehsanstoreiran.ir/file/ehsan.jpg"
@@ -23,7 +31,12 @@
       },
       "isOutOfStock": false,
       "createdAt": "2026-09-19 05:25:00",
-      "id": "p-1789795649838-1001-0"
+      "priceIRT": 0,
+      "priceCNY": 0,
+      "priceAED": 0,
+      "purchasePriceIRT": 0,
+      "purchasePriceAED": 0,
+      "purchasePriceCNY": 0
     },
     {
       "id": "p-1789795649839-1002-1",
